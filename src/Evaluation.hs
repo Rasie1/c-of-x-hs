@@ -43,36 +43,28 @@ makeEnvironment = Map.empty
 getFromEnv :: Environment -> Text -> Evaluation (Maybe Expression)
 getFromEnv env var = do
     pure $ Map.lookup var env
--- unwrap :: Expression -> Expression -> Environment -> (Text, Expression)
--- unwrap binder body env = case binder of 
---     EVar var -> (var, body)
---     ELit lit -> (
 
-unwrap :: Environment -> Expression -> Expression -> (Bool, Environment) 
+unwrap :: Environment -> Expression -> Expression -> Evaluation (Bool, Environment) 
 unwrap env l r = case l of 
-    EVar var -> (True, Map.insert var r env)
-    ELit lit -> (True, env)
+    EVar var -> pure (True, Map.insert var r env)
+    ELit lit -> do 
+        path <- findPath env (toConstr l) r
+        case path of
+            Nothing -> throwError "can't unwrap"
+            Just res -> return (res == l, env)
     -- EApp fun arg -> unwrap 
-
-
 
 findPath :: Environment -> Constr -> Expression -> Evaluation (Maybe Expression)
 findPath env expectedConstr actual = do
     lift $ debugLog "findPath"
     if expectedConstr == toConstr actual
-    then return (Just actual)
+    then do 
+        return (Just actual)
     else do
         evaluated <- eval env actual
         if evaluated == actual then return Nothing
                                else findPath env expectedConstr evaluated
-                               
--- calculation env cons op l r = case (l, r) of
---     (EVar var, x) -> case (Map.lookup var env) of
---         Nothing -> throwError ("unbound variable " <> showT var)
---         Just y  -> eval env (cons x y)
---     (ELit (LInt x), ELit (LInt y)) -> pure (ELit (LInt (op x y)))
---     (x, y) -> throwError "invalid calculation"
-     
+
 calculation env cons op l r = do
     p1 <- findPath env (toConstr (ELit (LInt 0))) l
     p2 <- findPath env (toConstr (ELit (LInt 0))) r
@@ -104,18 +96,20 @@ eval env e = do
             EApp fun arg -> case fun of
                 ELam binder body -> 
                     eval (Map.insert binder arg env) body
-                EAbs binder body -> case unwrap env binder arg of
-                    (False, _) -> throwError ("can't unwrap")
-                    (True, env) ->  eval env body
+                EAbs binder body -> do
+                    (matched, newEnv) <- unwrap env binder arg
+                    if not matched then throwError "can't unwrap"
+                                   else eval newEnv body
                 EApp fun deeperArg -> do
                     path <- findPath env (toConstr (EAbs ENothing ENothing)) fun
                     case path of
                         Nothing -> invalidApp
-                        Just (EAbs binder body) -> case unwrap env binder deeperArg of
-                            (False, _) -> throwError ("can't unwrap")
-                            (True, env) -> do
-                                applied <- eval env (EApp (EAbs binder body) deeperArg)
-                                eval env (EApp applied arg)
+                        Just (EAbs binder body) -> do
+                            (matched, newEnv) <- unwrap env binder deeperArg
+                            if not matched then throwError ("can't unwrap")
+                                           else do
+                                applied <- eval newEnv (EApp (EAbs binder body) deeperArg)
+                                eval newEnv (EApp applied arg)
                 _ -> invalidApp
                 where invalidApp = throwError ("invalid application of " <> showT fun <> " and " <> showT arg)
 
