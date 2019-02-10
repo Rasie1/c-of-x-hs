@@ -48,13 +48,13 @@ unwrap :: Environment -> Expression -> Expression -> Evaluation (Bool, Environme
 unwrap env binder arg = case binder of 
     EVar var -> pure (True, Map.insert var arg env)
     ELit lit -> do 
-        path <- findPath env (toConstr binder) arg
+        path <- findPath env (equalExpression binder) arg
         case path of
             Nothing -> throwError "can't unwrap"
-            Just res -> return (res == binder, env)
+            Just res -> return (True, env)
     EAdd l r -> do
-        lVariable <- findPath env (toConstr (EVar "")) l
-        rVariable <- findPath env (toConstr (EVar "")) r
+        lVariable <- findPath env (ofConstr (EVar "")) l
+        rVariable <- findPath env (ofConstr (EVar "")) r
         case (lVariable, rVariable) of
             (Just (EVar var), Nothing) -> pure (True, Map.insert var (ESub arg (ELit (LInt 3))) env)
             (Nothing, Just (EVar var)) -> pure (True, Map.insert var (ESub arg (ELit (LInt 3))) env)
@@ -62,20 +62,30 @@ unwrap env binder arg = case binder of
     _ -> throwError "can't unwrap"
     -- EApp fun arg -> unwrap 
 
-findPath :: Environment -> Constr -> Expression -> Evaluation (Maybe Expression)
-findPath env expectedConstr actual = do
-    lift $ debugLog "findPath"
-    if expectedConstr == toConstr actual
-    then do 
-        return (Just actual)
+type PathFoundPredicate = Expression -> Bool
+
+ofConstr :: Expression -> (Expression -> Bool)
+ofConstr constr e = toConstr constr == toConstr e
+
+equalExpression :: Expression -> (Expression -> Bool)
+equalExpression expected actual = expected == actual
+
+finalResult :: Expression -> Bool
+finalResult e = toConstr (ELit (LInt 0)) == toConstr e
+
+
+findPath :: Environment -> PathFoundPredicate -> Expression -> Evaluation (Maybe Expression)
+findPath env predicate actual = do
+    if predicate actual
+    then return (Just actual)
     else do
         evaluated <- eval env actual
         if evaluated == actual then return Nothing
-                               else findPath env expectedConstr evaluated
+                               else findPath env predicate evaluated
 
 calculation env cons op l r = do
-    p1 <- findPath env (toConstr (ELit (LInt 0))) l
-    p2 <- findPath env (toConstr (ELit (LInt 0))) r
+    p1 <- findPath env (ofConstr (ELit (LInt 0))) l
+    p2 <- findPath env (ofConstr (ELit (LInt 0))) r
     case (p1, p2) of 
         (Nothing, _) -> throwError "invalid calculation"
         (_, Nothing) -> throwError "invalid calculation"
@@ -109,7 +119,7 @@ eval env e = do
                     if not matched then throwError "can't unwrap"
                                    else eval newEnv body
                 EApp fun deeperArg -> do
-                    path <- findPath env (toConstr (EAbs ENothing ENothing)) fun
+                    path <- findPath env (ofConstr (EAbs ENothing ENothing)) fun
                     case path of
                         Nothing -> invalidApp
                         Just (EAbs binder body) -> do
@@ -135,7 +145,11 @@ eval env e = do
 type EvaluationResult = (Either Text Expression, [String])
 
 runEvaluation :: Environment -> Expression -> (Either Text Expression, ([String], Int))
-runEvaluation env e = runState (runExceptT (eval env e)) ([], 0)
+runEvaluation env e = runState (runExceptT evaluated) ([], 0)
+    where evaluated = do path <- findPath env finalResult e
+                         case path of
+                             Nothing -> throwError ("can't evaluate to printable value")
+                             Just e -> return e
 
 evaluate :: Expression -> EvaluationResult
 evaluate e = let (result, (log, _)) = runEvaluation makeEnvironment e
