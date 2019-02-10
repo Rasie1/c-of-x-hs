@@ -25,13 +25,12 @@ executables:
 
 tests:
   spec:
-    main: ParserTests.hs
+    main: Tests.hs
     source-dirs:
       - test
       - src
     dependencies:
-      - hspec
-      - QuickCheck
-      - silently
-      - filepath
-      - safe
+      - test-framework
+      - test-framework-hunit
+      - HUnit
+      - containers == 0.5.*
