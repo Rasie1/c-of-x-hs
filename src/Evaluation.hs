@@ -45,13 +45,21 @@ getFromEnv env var = do
     pure $ Map.lookup var env
 
 unwrap :: Environment -> Expression -> Expression -> Evaluation (Bool, Environment) 
-unwrap env l r = case l of 
-    EVar var -> pure (True, Map.insert var r env)
+unwrap env binder arg = case binder of 
+    EVar var -> pure (True, Map.insert var arg env)
     ELit lit -> do 
-        path <- findPath env (toConstr l) r
+        path <- findPath env (toConstr binder) arg
         case path of
             Nothing -> throwError "can't unwrap"
-            Just res -> return (res == l, env)
+            Just res -> return (res == binder, env)
+    EAdd l r -> do
+        lVariable <- findPath env (toConstr (EVar "")) l
+        rVariable <- findPath env (toConstr (EVar "")) r
+        case (lVariable, rVariable) of
+            (Just (EVar var), Nothing) -> pure (True, Map.insert var (ESub arg (ELit (LInt 3))) env)
+            (Nothing, Just (EVar var)) -> pure (True, Map.insert var (ESub arg (ELit (LInt 3))) env)
+            _ -> throwError "can't unwrap"
+    _ -> throwError "can't unwrap"
     -- EApp fun arg -> unwrap 
 
 findPath :: Environment -> Constr -> Expression -> Evaluation (Maybe Expression)

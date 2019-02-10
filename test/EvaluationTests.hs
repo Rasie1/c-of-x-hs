@@ -15,7 +15,8 @@ evaluationTests =
     , testCase "binaryPlus" plusTest 
     , testCase "lambdas" lambdasTest 
     , testCase "matchTest" matchTest
-    , testCase "wrongMatchTest" wrongMatchTest
+    , testCase "wrongMatch" wrongMatchTest
+    , testCase "unapplyPlus" unapplyPlusTest
     ]
 
 evaluateTest :: Expression -> Expression -> Assertion
@@ -61,3 +62,7 @@ matchTest = parseAndEvaluateTest "(3 => 5) 3" (ELit (LInt 5))
 
 wrongMatchTest :: Assertion 
 wrongMatchTest = parseAndFailEvaluationTest "(3 => 5) 2"
+
+unapplyPlusTest :: Assertion 
+unapplyPlusTest = parseAndEvaluateTest "(x + 3 => x) 4" (ELit (LInt 1))
+               >> parseAndEvaluateTest "(3 + x => x) 4" (ELit (LInt 1))
