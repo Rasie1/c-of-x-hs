@@ -1,0 +1,37 @@
+name:                c-of-x
+version:             0.1.0.0
+synopsis:            A programming language
+#description:
+homepage:            https://github.com/Rasie1/c-of-x-hs
+license:             GPL-3
+author:              Vsevolod Kvachev
+maintainer:          vsevolod@kvachev.com
+copyright:           2019 Vsevolod Kvachev
+category:            Compiler
+extra-source-files:
+- README.md
+
+dependencies:
+  - base >= 4.7 && < 5
+  - text
+  - mtl
+  - containers
+  - megaparsec
+
+executables:
+  c-of-x:
+    source-dirs:      src
+    main:             Main.hs
+
+tests:
+  spec:
+    main: ParserTests.hs
+    source-dirs:
+      - test
+      - src
+    dependencies:
+      - hspec
+      - QuickCheck
+      - silently
+      - filepath
+      - safe
