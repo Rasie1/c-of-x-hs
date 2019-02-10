@@ -8,7 +8,8 @@ import Control.Monad
 import AST
 import Parser
 
-parserTests = [testCase "parseLiteral" literalTest]
+parserTests = 
+    [ testCase "parseLiteral" literalTest ]
 
 parseTest :: String -> Expression -> Assertion
 parseTest actual expected =
