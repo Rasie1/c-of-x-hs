@@ -6,7 +6,7 @@ import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Control.Monad.Except (Except, ExceptT, runExcept, runExceptT, throwError)
-import Control.Monad.Writer.Strict
+import Control.Monad.Writer
 import Control.Monad.State
 import Data.Data
 import AST
@@ -64,15 +64,14 @@ unwrap env binder arg = case binder of
 
 type PathFoundPredicate = Expression -> Bool
 
-ofConstr :: Expression -> (Expression -> Bool)
+ofConstr :: Expression -> PathFoundPredicate
 ofConstr constr e = toConstr constr == toConstr e
 
-equalExpression :: Expression -> (Expression -> Bool)
+equalExpression :: Expression -> PathFoundPredicate
 equalExpression expected actual = expected == actual
 
-finalResult :: Expression -> Bool
+finalResult :: PathFoundPredicate
 finalResult e = toConstr (ELit (LInt 0)) == toConstr e
-
 
 findPath :: Environment -> PathFoundPredicate -> Expression -> Evaluation (Maybe Expression)
 findPath env predicate actual = do
@@ -140,6 +139,10 @@ eval env e = do
             LineBreak e1 e2 -> pure e
             ELet var val e -> eval (Map.insert var val env) e
             EPos pos -> pure e
+            EThen l r -> pure e
+            --  do
+            --     _ <- eval env l
+            --     eval env r
             ENothing -> pure e
 
 type EvaluationResult = (Either Text Expression, [String])

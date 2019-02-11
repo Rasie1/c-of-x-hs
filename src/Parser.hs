@@ -18,6 +18,7 @@ parseExpression = first show . runParser expressionParser ""
 type Parser = Parsec Void String
 
 spaceConsumer :: Parser ()
+-- spaceConsumer = L.space (skipMany (symbol " ")) lineCmnt blockCmnt
 spaceConsumer = L.space space1 lineCmnt blockCmnt
   where
     lineCmnt  = L.skipLineComment "//"
@@ -31,9 +32,6 @@ symbol = L.symbol spaceConsumer
 
 parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
-
--- block :: Parser -> Parser a
-
 
 integer :: Parser Integer
 integer = lexeme L.decimal
@@ -52,8 +50,34 @@ identifier = (lexeme . try) (p >>= check)
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
 
+file :: Parser Expression
+file = do ret <- block 
+          eof
+          return ret
+
+line :: Parser Expression
+line = do
+  ret <- expression
+  return ret
+
+space :: Parser ()
+space = L.space (void spaceChar) empty empty
+
+
+items :: Parser () -> Parser Expression
+items sp = L.lineFold sp $ \sp' ->
+  expression
+
+items_ :: Parser Expression
+items_ = items Text.Megaparsec.Char.space
+
+
+block :: Parser Expression
+block = expression
+
 expressionParser :: Parser Expression
 expressionParser = between spaceConsumer eof expression
+
 
 expression :: Parser Expression
 expression = operators_ folded

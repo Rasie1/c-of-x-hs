@@ -7,10 +7,11 @@ import Evaluation (evaluate)
 main :: IO ()
 main = do
   inputs <- readFile "code.txt"
+  putStrLn "Parsing expression..."
   case parseExpression inputs of
     Left err -> putStrLn err
     Right e -> do putStrLn "Expression:"
-                  putStrLn (show e)
+                  print e
                   putStrLn "Evaluation log:"
                   case evaluate e of
                     (Left err, log) -> do
@@ -19,4 +20,4 @@ main = do
                     (Right e, log) -> do
                       mapM_ putStrLn log
                       putStrLn "Result:"
-                      putStrLn (show e)
+                      print e
