@@ -10,26 +10,18 @@ import Data.Text (Text, unwords)
 import qualified Data.Text as Text
 import Text.Megaparsec (Pos)
 
--- data Operation
---   = Addition Expression Expression
---   | Abstraction Expression Expression
---   | Application Expression Expression
-
 data Expression
   = EVar Text
   | ELit Lit
   | EApp Expression Expression
-  | ELam Text Expression
   | EAdd Expression Expression
   | ESub Expression Expression
   | EMult Expression Expression
   | EAbs Expression Expression
-  | LineBreak Expression Expression
   | ELet Text Expression Expression
   | EThen Expression Expression
   | ENothing
   | EAny
-  -- | EOperation Operation
   deriving (Eq, Ord, Show, Typeable, Data)
 
 data Lit

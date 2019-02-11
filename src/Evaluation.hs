@@ -107,12 +107,7 @@ eval env e = do
             EVar var -> case Map.lookup var env of
                 Nothing -> throwError ("unbound variable " <> showT var)
                 Just e -> pure e
-
-            ELit lit -> pure e
-
             EApp fun arg -> case fun of
-                ELam binder body -> 
-                    eval (Map.insert binder arg env) body
                 EAbs binder body -> do
                     newEnv <- unwrap env binder arg
                     case newEnv of 
@@ -131,22 +126,16 @@ eval env e = do
                                 _ -> throwError ("can't unwrap")
                 _ -> invalidApp
                 where invalidApp = throwError ("invalid application of " <> showT fun <> " and " <> showT arg)
-
-            ELam arg fun -> pure e
-            
             EAdd  l r -> calculation env EAdd  (+) l r
             EMult l r -> calculation env EMult (*) l r
             ESub  l r -> calculation env ESub  (-) l r
-            EAbs binder body -> pure e
-            LineBreak e1 e2 -> pure e
             ELet var val e -> eval (Map.insert var val env) e
             EThen l r -> do
                 newEnv <- unwrap env l EAny
                 case newEnv of 
                     Just env -> eval env r
                     _ -> throwError "failed evaluating line"
-            ENothing -> pure e
-            EAny -> pure e
+            _ -> pure e
 
 type EvaluationResult = (Either Text Expression, [String])
 
