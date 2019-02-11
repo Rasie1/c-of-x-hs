@@ -139,10 +139,7 @@ eval env e = do
             LineBreak e1 e2 -> pure e
             ELet var val e -> eval (Map.insert var val env) e
             EPos pos -> pure e
-            EThen l r -> pure e
-            --  do
-            --     _ <- eval env l
-            --     eval env r
+            EThen l r -> eval env l >> pure r
             ENothing -> pure e
 
 type EvaluationResult = (Either Text Expression, [String])

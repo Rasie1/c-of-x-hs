@@ -17,12 +17,11 @@ parseExpression = first show . runParser file ""
 
 type Parser = Parsec Void String
 
+allSpaceConsumer :: Parser ()
+allSpaceConsumer = L.space space1 (L.skipLineComment "//") (L.skipBlockComment "/*" "*/")
+
 spaceConsumer :: Parser ()
--- spaceConsumer = L.space (skipMany (symbol " ")) lineCmnt blockCmnt
-spaceConsumer = L.space space1 lineCmnt blockCmnt
-  where
-    lineCmnt  = L.skipLineComment "//"
-    blockCmnt = L.skipBlockComment "/*" "*/"
+spaceConsumer = L.space (skipSome (char ' ')) (L.skipLineComment "//") (L.skipBlockComment "/*" "*/")
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme spaceConsumer
@@ -32,6 +31,18 @@ symbol = L.symbol spaceConsumer
 
 parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
+
+line :: Parser Expression
+line = do
+  ret <- expression
+  void eol <|> eof
+  return ret
+
+file :: Parser Expression
+file = foldThen <$> (some line)
+  where foldThen :: [Expression] -> Expression
+        foldThen [exp] = exp
+        foldThen xs = foldl1 EThen xs
 
 integer :: Parser Integer
 integer = lexeme L.decimal
@@ -50,66 +61,23 @@ identifier = (lexeme . try) (p >>= check)
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
 
-file :: Parser Expression
-file = do ret <- many expression 
-          return (head ret)
-
-line :: Parser Expression
-line = do
-  ret <- expression
-  return ret
-
-space :: Parser ()
-space = L.space (void spaceChar) empty empty
-
-
-items :: Parser () -> Parser Expression
-items sp = L.lineFold sp $ \sp' ->
-  expression
-
-items_ :: Parser Expression
-items_ = items Text.Megaparsec.Char.space
-
-
-block :: Parser Expression
-block = expression
-
 expressionParser :: Parser Expression
 expressionParser = between spaceConsumer eof expression
-
 
 expression :: Parser Expression
 expression = operators_ folded
   where folded = foldApps <$> some expressionAtom
+        foldApps :: [Expression] -> Expression
+        foldApps [exp] = exp
+        foldApps xs = foldl1 EApp xs
 
-foldApps :: [Expression] -> Expression
-foldApps [exp] = exp
-foldApps xs = foldl1 EApp  xs
 
 expressionAtom :: Parser Expression
 expressionAtom = parens expression 
              <|> let_ 
-             <|> abstraction_ 
-             <|> pos_
              <|> literal_ 
              <|> EVar . Text.pack 
              <$> identifier
-
--- prefixParser =
---   do
---     prefixOps <- many prefixOp
---     exp <- exponentiationParser
---     return $ foldr ($) exp prefixOps
---   where
---     prefixOp = MonOp MonoMinus <$ symbol "-" <|> MonOp MonoPlus <$ symbol "+"
-
-
--- exponentiationParser =
---   do
---     lhs <- termParser
---     -- Loop back up to prefix instead of going down to term
---     rhs <- optional (symbol "^" >> prefixParser)
---     return $ maybe lhs (BinOp BinaryExp lhs) rhs
 
 operators_ e =
     makeExprParser e
@@ -135,19 +103,6 @@ let_ = do
   rword "in"
   expression2 <- expression
   pure (ELet (Text.pack var) expression1 expression2)
-
-pos_ :: Parser Expression
-pos_ = do
-  pos <- L.indentLevel
-  rword "pos"
-  pure (EPos pos)
-
-abstraction_ :: Parser Expression
-abstraction_ = do
-  void (symbol "\\")
-  var <- identifier
-  (symbol "->")
-  ELam (Text.pack var) <$> expression
 
 literal_ = ELit <$> (
   LInt <$> integer
