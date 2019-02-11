@@ -13,7 +13,7 @@ import Data.Char (isDigit, isAlphaNum)
 import qualified Data.Text as Text
 
 parseExpression :: String -> Either String Expression
-parseExpression = first show . runParser expressionParser ""
+parseExpression = first show . runParser file ""
 
 type Parser = Parsec Void String
 
@@ -51,9 +51,8 @@ identifier = (lexeme . try) (p >>= check)
                 else return x
 
 file :: Parser Expression
-file = do ret <- block 
-          eof
-          return ret
+file = do ret <- many expression 
+          return (head ret)
 
 line :: Parser Expression
 line = do
