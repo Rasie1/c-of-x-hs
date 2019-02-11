@@ -26,9 +26,9 @@ data Expression
   | EAbs Expression Expression
   | LineBreak Expression Expression
   | ELet Text Expression Expression
-  | EPos Pos
   | EThen Expression Expression
   | ENothing
+  | EAny
   -- | EOperation Operation
   deriving (Eq, Ord, Show, Typeable, Data)
 

@@ -9,6 +9,7 @@ import Control.Monad.Except (Except, ExceptT, runExcept, runExceptT, throwError)
 import Control.Monad.Writer
 import Control.Monad.State
 import Data.Data
+import Data.Maybe
 import AST
 
 type Environment = Map Text Expression
@@ -44,20 +45,20 @@ getFromEnv :: Environment -> Text -> Evaluation (Maybe Expression)
 getFromEnv env var = do
     pure $ Map.lookup var env
 
-unwrap :: Environment -> Expression -> Expression -> Evaluation (Bool, Environment) 
+unwrap :: Environment -> Expression -> Expression -> Evaluation (Maybe Environment) 
 unwrap env binder arg = case binder of 
-    EVar var -> pure (True, Map.insert var arg env)
+    EVar var -> pure (Just $ Map.insert var arg env)
     ELit lit -> do 
         path <- findPath env (equalExpression binder) arg
         case path of
             Nothing -> throwError "can't unwrap"
-            Just res -> return (True, env)
+            Just res -> return $ Just env
     EAdd l r -> do
         lVariable <- findPath env (ofConstr (EVar "")) l
         rVariable <- findPath env (ofConstr (EVar "")) r
         case (lVariable, rVariable) of
-            (Just (EVar var), Nothing) -> pure (True, Map.insert var (ESub arg (ELit (LInt 3))) env)
-            (Nothing, Just (EVar var)) -> pure (True, Map.insert var (ESub arg (ELit (LInt 3))) env)
+            (Just (EVar var), Nothing) -> pure (Just $ Map.insert var (ESub arg (ELit (LInt 3))) env)
+            (Nothing, Just (EVar var)) -> pure (Just $ Map.insert var (ESub arg (ELit (LInt 3))) env)
             _ -> throwError "can't unwrap"
     _ -> throwError "can't unwrap"
     -- EApp fun arg -> unwrap 
@@ -75,12 +76,11 @@ finalResult e = toConstr (ELit (LInt 0)) == toConstr e
 
 findPath :: Environment -> PathFoundPredicate -> Expression -> Evaluation (Maybe Expression)
 findPath env predicate actual = do
-    if predicate actual
-    then return (Just actual)
-    else do
+    if predicate actual then return (Just actual)
+                        else do
         evaluated <- eval env actual
         if evaluated == actual then return Nothing
-                               else findPath env predicate evaluated
+                            else findPath env predicate evaluated
 
 calculation env cons op l r = do
     p1 <- findPath env (ofConstr (ELit (LInt 0))) l
@@ -114,19 +114,21 @@ eval env e = do
                 ELam binder body -> 
                     eval (Map.insert binder arg env) body
                 EAbs binder body -> do
-                    (matched, newEnv) <- unwrap env binder arg
-                    if not matched then throwError "can't unwrap"
-                                   else eval newEnv body
+                    newEnv <- unwrap env binder arg
+                    case newEnv of 
+                        Just env -> eval env body
+                        _-> throwError "can't unwrap"
                 EApp fun deeperArg -> do
                     path <- findPath env (ofConstr (EAbs ENothing ENothing)) fun
                     case path of
                         Nothing -> invalidApp
                         Just (EAbs binder body) -> do
-                            (matched, newEnv) <- unwrap env binder deeperArg
-                            if not matched then throwError ("can't unwrap")
-                                           else do
-                                applied <- eval newEnv (EApp (EAbs binder body) deeperArg)
-                                eval newEnv (EApp applied arg)
+                            newEnv <- unwrap env binder deeperArg
+                            case newEnv of
+                                Just env -> do
+                                    applied <- eval env (EApp (EAbs binder body) deeperArg)
+                                    eval env (EApp applied arg)
+                                _ -> throwError ("can't unwrap")
                 _ -> invalidApp
                 where invalidApp = throwError ("invalid application of " <> showT fun <> " and " <> showT arg)
 
@@ -138,9 +140,13 @@ eval env e = do
             EAbs binder body -> pure e
             LineBreak e1 e2 -> pure e
             ELet var val e -> eval (Map.insert var val env) e
-            EPos pos -> pure e
-            EThen l r -> eval env l >> pure r
+            EThen l r -> do
+                newEnv <- unwrap env l EAny
+                case newEnv of 
+                    Just env -> eval env r
+                    _ -> throwError "failed evaluating line"
             ENothing -> pure e
+            EAny -> pure e
 
 type EvaluationResult = (Either Text Expression, [String])
 
