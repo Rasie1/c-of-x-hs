@@ -76,11 +76,12 @@ finalResult e = toConstr (ELit (LInt 0)) == toConstr e
 
 findPath :: Environment -> PathFoundPredicate -> Expression -> Evaluation (Maybe Expression)
 findPath env predicate actual = do
-    if predicate actual then return (Just actual)
-                        else do
-        evaluated <- eval env actual
-        if evaluated == actual then return Nothing
-                            else findPath env predicate evaluated
+    if predicate actual || actual == EAny
+        then return (Just actual)
+        else do
+            evaluated <- eval env actual
+            if evaluated == actual then return Nothing
+                                else findPath env predicate evaluated
 
 calculation env cons op l r = do
     p1 <- findPath env (ofConstr (ELit (LInt 0))) l
