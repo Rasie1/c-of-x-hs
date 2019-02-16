@@ -46,27 +46,39 @@ getFromEnv env var = do
     pure $ Map.lookup var env
 
 unwrap :: Environment -> Expression -> Expression -> Evaluation (Maybe Environment) 
-unwrap env binder arg = case binder of 
-    EVar var -> pure (Just $ Map.insert var arg env)
-    ELit lit -> do 
-        path <- findPath env (equalExpression binder) arg
-        case path of
-            Nothing -> throwError "can't unwrap"
-            Just res -> return $ Just env
-    EAdd l r -> do
-        lVariable <- findPath env (ofConstr (EVar "")) l
-        rVariable <- findPath env (ofConstr (EVar "")) r
-        case (lVariable, rVariable) of
-            (Just (EVar var), Nothing) -> pure (Just $ Map.insert var (ESub arg (ELit (LInt 3))) env)
-            (Nothing, Just (EVar var)) -> pure (Just $ Map.insert var (ESub arg (ELit (LInt 3))) env)
-            _ -> throwError "can't unwrap"
-    _ -> throwError "can't unwrap"
-    -- EApp fun arg -> unwrap 
+unwrap env binder arg = do
+    evaluated <- eval env binder
+    if evaluated /= binder then unwrap env evaluated arg
+                           else case binder of 
+        EVar var -> pure (Just $ Map.insert var arg env)
+        ELit lit -> do 
+            path <- findPath env (equalExpression binder) arg
+            case path of
+                Nothing -> throwError "can't unwrap"
+                Just res -> return $ Just env
+        EAdd l r -> do
+            unwrappedL <- unwrap env l arg
+            unwrappedR <- unwrap env r arg
+            case (unwrappedL, unwrappedR) of
+                (Just env, Nothing) -> return $ Just env
+                (Nothing, Just env) -> return $ Just env
+                _ -> throwError "can't unwrap"
+            -- lVariable <- findPath env (ofConstr (EVar "")) l
+            -- rVariable <- findPath env (ofConstr (EVar "")) r
+            -- case (lVariable, rVariable) of
+            --     (Just (EVar var), Nothing) -> pure (Just $ Map.insert var (ESub arg (ELit (LInt 3))) env)
+            --     (Nothing, Just (EVar var)) -> pure (Just $ Map.insert var (ESub arg (ELit (LInt 3))) env)
+            --     _ -> throwError "can't unwrap"
+        _ -> throwError "can't unwrap"
+        -- EApp fun arg -> unwrap 
 
 type PathFoundPredicate = Expression -> Bool
 
 ofConstr :: Expression -> PathFoundPredicate
 ofConstr constr e = toConstr constr == toConstr e
+
+ofConstrOrVar :: Expression -> PathFoundPredicate
+ofConstrOrVar constr e = ofConstr constr e || ofConstr (EVar "") e
 
 equalExpression :: Expression -> PathFoundPredicate
 equalExpression expected actual = expected == actual
@@ -75,18 +87,27 @@ finalResult :: PathFoundPredicate
 finalResult e = toConstr (ELit (LInt 0)) == toConstr e
 
 findPath :: Environment -> PathFoundPredicate -> Expression -> Evaluation (Maybe Expression)
-findPath env predicate actual = do
-    if predicate actual || actual == EAny
-        then return (Just actual)
-        else do
-            evaluated <- eval env actual
-            if evaluated == actual then return Nothing
-                                else findPath env predicate evaluated
+findPath env predicate actual = case actual of
+        EAny -> return $ Just actual
+        EVar var -> case Map.lookup var env of
+            Nothing -> return $ Just EAny
+            Just e -> findPath env predicate e
+        _ -> if predicate actual 
+                then return (Just actual)
+                else do evaluated <- eval env actual
+                        if evaluated == actual 
+                           then return Nothing
+                           else findPath env predicate evaluated
 
 calculation env cons op l r = do
-    p1 <- findPath env (ofConstr (ELit (LInt 0))) l
-    p2 <- findPath env (ofConstr (ELit (LInt 0))) r
+    p1 <- findPath env (ofConstrOrVar (ELit (LInt 0))) l
+    p2 <- findPath env (ofConstrOrVar (ELit (LInt 0))) r
+    lift $ debugLog "aaaaaaaa"
+    lift $ debugLog (show p1)
+    lift $ debugLog (show p2)
     case (p1, p2) of 
+        (Just (EVar _), _) -> return $ cons l r
+        (_, Just (EVar _)) -> return $ cons l r
         (Nothing, _) -> throwError "invalid calculation"
         (_, Nothing) -> throwError "invalid calculation"
         (Just (ELit (LInt x)), Just (ELit (LInt y))) -> return (ELit (LInt (op x y)))
@@ -105,9 +126,9 @@ eval env e = do
     lift $ debugLog (show (Map.assocs env))
     return r
     where result = case e of
-            EVar var -> case Map.lookup var env of
-                Nothing -> throwError ("unbound variable " <> showT var)
-                Just e -> pure e
+            -- EVar var -> case Map.lookup var env of
+            --     Nothing -> throwError ("unbound variable " <> showT var)
+            --     Just e -> pure e
             EApp fun arg -> case fun of
                 EAbs binder body -> do
                     newEnv <- unwrap env binder arg

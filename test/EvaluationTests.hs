@@ -25,7 +25,7 @@ evaluationTests =
 evaluateTest :: Expression -> Expression -> Assertion
 evaluateTest actual expected = case evaluate actual of
     (Left err, log) -> assertFailure (unpack err)
-    (Right e, log) -> assertEqual "Wrong result" e expected
+    (Right e, log) -> assertEqual "Wrong result" expected e
 
 failEvaluationTest :: Expression -> Assertion
 failEvaluationTest actual = case evaluate actual of

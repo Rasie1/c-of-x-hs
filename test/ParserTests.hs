@@ -19,7 +19,7 @@ parseTest actual expected =
     case parseExpression actual of
         Left err -> assertFailure err
         Right parsed -> assertEqual "Wrong parse"
-                                    parsed expected
+                                    expected parsed
 
 literalTest :: Assertion
 literalTest = parseTest "5" (ELit (LInt 5))
