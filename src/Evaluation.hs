@@ -47,30 +47,41 @@ getFromEnv env var = do
 
 unwrap :: Environment -> Expression -> Expression -> Evaluation (Maybe Environment) 
 unwrap env binder arg = do
-    evaluated <- eval env binder
-    if evaluated /= binder then unwrap env evaluated arg
-                           else case binder of 
-        EVar var -> pure (Just $ Map.insert var arg env)
-        ELit lit -> do 
-            path <- findPath env (equalExpression binder) arg
-            case path of
-                Nothing -> throwError "can't unwrap"
-                Just res -> return $ Just env
-        EAdd l r -> do
-            unwrappedL <- unwrap env l arg
-            unwrappedR <- unwrap env r arg
-            case (unwrappedL, unwrappedR) of
-                (Just env, Nothing) -> return $ Just env
-                (Nothing, Just env) -> return $ Just env
-                _ -> throwError "can't unwrap"
-            -- lVariable <- findPath env (ofConstr (EVar "")) l
-            -- rVariable <- findPath env (ofConstr (EVar "")) r
-            -- case (lVariable, rVariable) of
-            --     (Just (EVar var), Nothing) -> pure (Just $ Map.insert var (ESub arg (ELit (LInt 3))) env)
-            --     (Nothing, Just (EVar var)) -> pure (Just $ Map.insert var (ESub arg (ELit (LInt 3))) env)
-            --     _ -> throwError "can't unwrap"
-        _ -> throwError "can't unwrap"
-        -- EApp fun arg -> unwrap 
+    lift $ debugLog ("Unwrapping expression")
+    lift $ debugLog (show binder)
+    lift $ debugLog (show arg)
+    lift $ increaseDebugIndentation
+    r <- result
+    lift $ decreaseDebugIndentation
+    -- lift $ debugLog "Unwrap result"
+    -- lift $ debugLog (show r)
+    -- lift $ debugLog (show (Map.assocs env))
+    return r
+    where result = do
+            evaluated <- eval env binder
+            if evaluated /= binder then unwrap env evaluated arg
+                                else case binder of 
+                EVar var -> pure (Just $ Map.insert var arg env)
+                ELit lit -> do 
+                    path <- findPath env (equalExpression binder) arg
+                    case path of
+                        Nothing -> return Nothing -- "unwrap: can't match literals"
+                        Just res -> return $ Just env
+                EAdd l r -> do
+                    unwrappedL <- unwrap env l (ESub arg r)
+                    unwrappedR <- unwrap env r (ESub arg l)
+                    case (unwrappedL, unwrappedR) of
+                        (Just env, Nothing) -> return $ Just env
+                        (Nothing, Just env) -> return $ Just env
+                        _ -> throwError "unwrap: ambiguous environments"
+                    -- lVariable <- findPath env (ofConstr (EVar "")) l
+                    -- rVariable <- findPath env (ofConstr (EVar "")) r
+                    -- case (lVariable, rVariable) of
+                    --     (Just (EVar var), Nothing) -> pure (Just $ Map.insert var (ESub arg (ELit (LInt 3))) env)
+                    --     (Nothing, Just (EVar var)) -> pure (Just $ Map.insert var (ESub arg (ELit (LInt 3))) env)
+                    --     _ -> throwError "can't unwrap"
+                _ -> throwError "unwrap: no match"
+                -- EApp fun arg -> unwrap 
 
 type PathFoundPredicate = Expression -> Bool
 
@@ -90,7 +101,7 @@ findPath :: Environment -> PathFoundPredicate -> Expression -> Evaluation (Maybe
 findPath env predicate actual = case actual of
         EAny -> return $ Just actual
         EVar var -> case Map.lookup var env of
-            Nothing -> return $ Just EAny
+            Nothing -> return $ Just actual
             Just e -> findPath env predicate e
         _ -> if predicate actual 
                 then return (Just actual)
@@ -102,7 +113,7 @@ findPath env predicate actual = case actual of
 calculation env cons op l r = do
     p1 <- findPath env (ofConstrOrVar (ELit (LInt 0))) l
     p2 <- findPath env (ofConstrOrVar (ELit (LInt 0))) r
-    lift $ debugLog "aaaaaaaa"
+    lift $ debugLog "Calculation"
     lift $ debugLog (show p1)
     lift $ debugLog (show p2)
     case (p1, p2) of 
@@ -113,6 +124,10 @@ calculation env cons op l r = do
         (Just (ELit (LInt x)), Just (ELit (LInt y))) -> return (ELit (LInt (op x y)))
         _ -> throwError "invalid calculation operand datatype"
 
+orError :: Text -> Maybe a -> Evaluation a
+orError err x = case x of
+    Just a -> pure a
+    Nothing -> throwError err
 
 eval :: Environment -> Expression -> Evaluation Expression
 eval env e = do
@@ -133,8 +148,8 @@ eval env e = do
                 EAbs binder body -> do
                     newEnv <- unwrap env binder arg
                     case newEnv of 
-                        Just env -> eval env body
-                        _-> throwError "can't unwrap"
+                        Just env -> eval env body >>= findPath env finalResult >>= orError "no path"
+                        _-> throwError "eval: wrong argument"
                 EApp fun deeperArg -> do
                     path <- findPath env (ofConstr (EAbs ENothing ENothing)) fun
                     case path of
@@ -145,7 +160,7 @@ eval env e = do
                                 Just env -> do
                                     applied <- eval env (EApp (EAbs binder body) deeperArg)
                                     eval env (EApp applied arg)
-                                _ -> throwError ("can't unwrap")
+                                _ -> throwError "eval: can't apply argument"
                 _ -> invalidApp
                 where invalidApp = throwError ("invalid application of " <> showT fun <> " and " <> showT arg)
             EAdd  l r -> calculation env EAdd  (+) l r
@@ -156,7 +171,7 @@ eval env e = do
                 newEnv <- unwrap env l EAny
                 case newEnv of 
                     Just env -> eval env r
-                    _ -> throwError "failed evaluating line"
+                    _ -> throwError "eval: failed evaluating line"
             _ -> pure e
 
 type EvaluationResult = (Either Text Expression, [String])
@@ -165,7 +180,7 @@ runEvaluation :: Environment -> Expression -> (Either Text Expression, ([String]
 runEvaluation env e = runState (runExceptT evaluated) ([], 0)
     where evaluated = do path <- findPath env finalResult e
                          case path of
-                             Nothing -> throwError ("can't evaluate to printable value")
+                             Nothing -> throwError "can't evaluate to printable value"
                              Just e -> return e
 
 evaluate :: Expression -> EvaluationResult
