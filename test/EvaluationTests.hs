@@ -13,6 +13,7 @@ import Parser
 evaluationTests = 
     [ testCase "evalLiteral" literalTest 
     , testCase "binaryPlus" plusTest 
+    , testCase "plusFail" plusFailTest 
     , testCase "lambdas" lambdasTest 
     , testCase "matchTest" matchTest
     , testCase "wrongMatch" wrongMatchTest
@@ -29,6 +30,12 @@ evaluationTests =
     , testCase "equalityFailTest" equalityFailTest
     , testCase "equalityEnvironmentTest" equalityEnvironmentTest
     , testCase "equalityEnvironmentFailTest" equalityEnvironmentFailTest
+    , testCase "identityFunction" identityFunction
+    , testCase "identityFunctionAndEquality" identityFunctionAndEquality
+    , testCase "identityFunctionAndEqualityFail" identityFunctionAndEqualityFail
+    , testCase "plusFunction" plusFunction
+    , testCase "typedArgumentFunction" typedArgumentFunction
+    , testCase "typedArgumentFunctionFail" typedArgumentFunctionFail
     ]
 
 evaluateTest :: Expression -> Expression -> Assertion
@@ -61,8 +68,8 @@ literalTest = assertEqual "as"
 plusTest :: Assertion
 plusTest = parseAndEvaluateTest "1 + 2" (ELit (LInt 3))
 
--- plusFailTest :: Assertion
--- plusFailTest = parseAndFailEvaluationTest "1 + (+)"
+plusFailTest :: Assertion
+plusFailTest = parseAndFailEvaluationTest "1 + (+)"
 
 lambdasTest :: Assertion
 lambdasTest = parseAndEvaluateTest 
@@ -116,3 +123,20 @@ equalityEnvironmentTest = parseAndEvaluateTest "x = 1; x" (ELit (LInt 3))
 equalityEnvironmentFailTest :: Assertion
 equalityEnvironmentFailTest = parseAndFailEvaluationTest "x = 3; x = 4"
 
+identityFunction :: Assertion
+identityFunction = parseAndEvaluateTest "i x = x; i 5" (ELit (LInt 5))
+
+identityFunctionAndEquality :: Assertion
+identityFunctionAndEquality = parseAndEvaluateTest "i x = x; i 5 = 5" (ELit (LInt 5))
+
+identityFunctionAndEqualityFail :: Assertion
+identityFunctionAndEqualityFail = parseAndFailEvaluationTest "i x = x; i 5 = 4"
+
+plusFunction :: Assertion
+plusFunction = parseAndEvaluateTest "plus x y = x + y; plus 1 2" (ELit (LInt 3))
+
+typedArgumentFunction :: Assertion
+typedArgumentFunction = parseAndEvaluateTest "f (Integer x) = x + 1; f 5 = 5" (ELit (LInt 5))
+
+typedArgumentFunctionFail :: Assertion
+typedArgumentFunctionFail = parseAndFailEvaluationTest "f (Integer x) = x + 1; f False"
