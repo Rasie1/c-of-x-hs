@@ -129,6 +129,13 @@ orError err x = case x of
     Just a -> pure a
     Nothing -> throwError err
 
+removeVariable :: Environment -> Expression -> Evaluation Expression
+-- getVariable env (EVar x) = case Map.lookup x env of 
+--         Just a -> pure a
+--         Nothing -> throwError "unbound variable"
+removeVariable env (EVar x) = orError "unbound variable" (Map.lookup x env)
+removeVariable env y = pure y
+
 eval :: Environment -> Expression -> Evaluation Expression
 eval env e = do
     lift $ debugLog ("Evaluating expression")
@@ -148,7 +155,7 @@ eval env e = do
                 EAbs binder body -> do
                     newEnv <- unwrap env binder arg
                     case newEnv of 
-                        Just env -> eval env body >>= findPath env finalResult >>= orError "no path"
+                        Just env -> eval env body >>= removeVariable env
                         _-> throwError "eval: wrong argument"
                 EApp fun deeperArg -> do
                     path <- findPath env (ofConstr (EAbs ENothing ENothing)) fun
