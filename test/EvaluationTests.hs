@@ -20,6 +20,7 @@ evaluationTests =
     , testCase "matchPlus" matchPlusTest
     , testCase "wrongMatchPlus" wrongMatchPlusTest
     , testCase "anyMatchTest" anyMatchTest
+    , testCase "thenTest" thenTest
     ]
 
 evaluateTest :: Expression -> Expression -> Assertion
@@ -78,3 +79,7 @@ wrongMatchPlusTest = parseAndFailEvaluationTest "(1 + 5 => 1) 4"
 
 anyMatchTest :: Assertion
 anyMatchTest = parseAndEvaluateTest "(3 => 1) _" (ELit (LInt 1))
+
+thenTest :: Assertion
+thenTest = parseAndEvaluateTest "3; 4" (ELit (LInt 4))
+        >> parseAndEvaluateTest "(x => x * 100) 4; (x => x * 100) 1" (ELit (LInt 100))

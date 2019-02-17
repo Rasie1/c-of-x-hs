@@ -92,6 +92,9 @@ operators_ e =
         ],
         [
           InfixR $ EAbs <$ symbol "=>"
+        ],
+        [
+          InfixR $ EThen <$ symbol ";"
         ]
       ]
 
