@@ -16,6 +16,7 @@ data Expression
   | EApp Expression Expression
   | EAdd Expression Expression
   | ESub Expression Expression
+  | EEq  Expression Expression
   | EMult Expression Expression
   | EAbs Expression Expression
   | ELet Text Expression Expression

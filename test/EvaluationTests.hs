@@ -25,6 +25,10 @@ evaluationTests =
     , testCase "integerFailTypeTest" integerFailTypeTest
     , testCase "integerLambdaTypeTest" integerTypeTest
     , testCase "integerLambdaFailTypeTest" integerFailTypeTest
+    , testCase "equalityTest" equalityTest
+    , testCase "equalityFailTest" equalityFailTest
+    , testCase "equalityEnvironmentTest" equalityEnvironmentTest
+    , testCase "equalityEnvironmentFailTest" equalityEnvironmentFailTest
     ]
 
 evaluateTest :: Expression -> Expression -> Assertion
@@ -99,3 +103,16 @@ integerLambdaTypeTest = parseAndEvaluateTest "(Integer x => x) 4" (ELit (LInt 4)
 
 integerLambdaFailTypeTest :: Assertion
 integerLambdaFailTypeTest = parseAndFailEvaluationTest "(Boolean x => x) 4"
+
+equalityTest :: Assertion
+equalityTest = parseAndEvaluateTest "3 = 3" (ELit (LInt 3))
+
+equalityFailTest :: Assertion
+equalityFailTest = parseAndFailEvaluationTest "3 = 4"
+
+equalityEnvironmentTest :: Assertion
+equalityEnvironmentTest = parseAndEvaluateTest "x = 1; x" (ELit (LInt 3))
+
+equalityEnvironmentFailTest :: Assertion
+equalityEnvironmentFailTest = parseAndFailEvaluationTest "x = 3; x = 4"
+

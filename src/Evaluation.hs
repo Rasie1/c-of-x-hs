@@ -136,6 +136,9 @@ removeVariable :: Environment -> Expression -> Evaluation Expression
 removeVariable env (EVar x) = orError "unbound variable" (Map.lookup x env)
 removeVariable env y = pure y
 
+-- typeCheck :: Environment -> Expression -> Expression -> Evaluation Bool
+-- typeCheck env t arg = case t of
+
 eval :: Environment -> Expression -> Evaluation Expression
 eval env e = do
     lift $ debugLog ("Evaluating expression")
@@ -178,12 +181,17 @@ eval env e = do
                     case value of
                         Just (ELit (LBool x)) -> return (ELit (LBool x))
                         _ -> throwError "argument is not integer"
+                -- EType (TFun a b) -> do
+                --     value 
                 _ -> invalidApp
                 where invalidApp = throwError ("invalid application of " <> showT fun <> " and " <> showT arg)
             EAdd  l r -> calculation env EAdd  (+) l r
             EMult l r -> calculation env EMult (*) l r
             ESub  l r -> calculation env ESub  (-) l r
             ELet var val e -> eval (Map.insert var val env) e
+            -- EEq l r -> do
+            --     p1 <- findPath env () l
+            --     p2 <- findPath env () r
             EThen l r -> do
                 newEnv <- unwrap env l EAny
                 case newEnv of 
