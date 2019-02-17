@@ -20,6 +20,7 @@ data Expression
   | EAbs Expression Expression
   | ELet Text Expression Expression
   | EThen Expression Expression
+  | EType Type
   | ENothing
   | EAny
   deriving (Eq, Ord, Show, Typeable, Data)

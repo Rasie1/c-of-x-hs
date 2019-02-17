@@ -76,6 +76,7 @@ expressionAtom :: Parser Expression
 expressionAtom = parens expression 
              <|> let_ 
              <|> literal_ 
+             <|> basicType_
              <|> any_
              <|> EVar . Text.pack 
              <$> identifier
@@ -112,6 +113,11 @@ literal_ = ELit <$> (
   LInt <$> integer
   <|> (symbol "True" *> pure (LBool True))
   <|> (symbol "False" *> pure (LBool False))
+  )
+
+basicType_ = EType <$> (
+      (symbol "Integer" *> pure TInt)
+  <|> (symbol "Boolean" *> pure TBool)
   )
 
 any_ = symbol "_" *> pure EAny

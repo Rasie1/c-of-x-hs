@@ -168,6 +168,16 @@ eval env e = do
                                     applied <- eval env (EApp (EAbs binder body) deeperArg)
                                     eval env (EApp applied arg)
                                 _ -> throwError "eval: can't apply argument"
+                EType TInt -> do
+                    value <- findPath env (ofConstr (ELit $ LInt 0)) arg 
+                    case value of
+                        Just (ELit (LInt x)) -> return (ELit (LInt x))
+                        _ -> throwError "argument is not integer"
+                EType TBool -> do
+                    value <- findPath env (ofConstr (ELit $ LBool False)) arg 
+                    case value of
+                        Just (ELit (LBool x)) -> return (ELit (LBool x))
+                        _ -> throwError "argument is not integer"
                 _ -> invalidApp
                 where invalidApp = throwError ("invalid application of " <> showT fun <> " and " <> showT arg)
             EAdd  l r -> calculation env EAdd  (+) l r

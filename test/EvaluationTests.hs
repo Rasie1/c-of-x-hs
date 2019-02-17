@@ -21,6 +21,10 @@ evaluationTests =
     , testCase "wrongMatchPlus" wrongMatchPlusTest
     , testCase "anyMatchTest" anyMatchTest
     , testCase "thenTest" thenTest
+    , testCase "integerTypeTest" integerTypeTest
+    , testCase "integerFailTypeTest" integerFailTypeTest
+    , testCase "integerLambdaTypeTest" integerTypeTest
+    , testCase "integerLambdaFailTypeTest" integerFailTypeTest
     ]
 
 evaluateTest :: Expression -> Expression -> Assertion
@@ -83,3 +87,15 @@ anyMatchTest = parseAndEvaluateTest "(3 => 1) _" (ELit (LInt 1))
 thenTest :: Assertion
 thenTest = parseAndEvaluateTest "3; 4" (ELit (LInt 4))
         >> parseAndEvaluateTest "(x => x * 100) 4; (x => x * 100) 1" (ELit (LInt 100))
+
+integerTypeTest :: Assertion
+integerTypeTest = parseAndEvaluateTest "Integer 4" (ELit (LInt 4))
+
+integerFailTypeTest :: Assertion
+integerFailTypeTest = parseAndFailEvaluationTest "Boolean 4"
+
+integerLambdaTypeTest :: Assertion
+integerLambdaTypeTest = parseAndEvaluateTest "(Integer x => x) 4" (ELit (LInt 4))
+
+integerLambdaFailTypeTest :: Assertion
+integerLambdaFailTypeTest = parseAndFailEvaluationTest "(Boolean x => x) 4"
