@@ -14,14 +14,14 @@ import AST
 
 eval :: Environment -> Expression -> Evaluation Expression
 eval env e = do
-    lift $ debugLog ("Evaluating expression:")
-    lift $ debugLog (show e)
+    logger ("Evaluating expression:")
+    logger (show e)
     lift $ increaseDebugIndentation
     r <- result
     lift $ decreaseDebugIndentation
-    lift $ debugLog "Evaluation result:"
-    lift $ debugLog (show r)
-    lift $ debugLog (show (Map.assocs env))
+    logger "Evaluation result:"
+    logger (show r)
+    logger (show (Map.assocs env))
     return r
     where result = case e of
             -- EVar var -> case Map.lookup var env of
@@ -77,35 +77,35 @@ eval env e = do
                     Just env -> eval env r
                     _ -> throwError "eval: failed evaluating line"
             ETestRec -> do
-                lift $ debugLog "rec"
+                logger "rec"
                 eval env e
             _ -> pure e
 
 unwrap :: Environment -> Expression -> Expression -> Evaluation (Maybe Environment) 
 unwrap env binder arg = do
-    lift $ debugLog ("Unwrapping expression")
-    lift $ debugLog ("Binder: " ++ show binder)
-    lift $ debugLog ("Arg:    " ++ show arg)
+    logger ("Unwrapping expression")
+    logger ("Binder: " ++ show binder)
+    logger ("Arg:    " ++ show arg)
     lift $ increaseDebugIndentation
     r <- result
     lift $ decreaseDebugIndentation
-    lift $ debugLog ("Unwrapping result: ")
-    lift $ debugLog (show r)
-    -- lift $ debugLog "Unwrap result"
-    -- lift $ debugLog (show r)
-    -- lift $ debugLog (show (Map.assocs env))
+    logger ("Unwrapping result: ")
+    logger (show r)
+    -- logger "Unwrap result"
+    -- logger (show r)
+    -- logger (show (Map.assocs env))
     return r
     where result = do
             evaluated <- eval env binder
             if evaluated /= binder then unwrap env evaluated arg
                                    else case binder of 
                 EVar var -> do
-                    lift $ debugLog ("Adding to env as " ++ show var ++ ":")
-                    lift $ debugLog (show arg)
+                    logger ("Adding to env as " ++ show var ++ ":")
+                    logger (show arg)
                     case Map.lookup var env of
                         Nothing -> pure (Just $ Map.insert var arg env)
                         Just value -> do 
-                            lift $ debugLog ("(not) Intersecting with " ++ show value)
+                            logger ("(not) Intersecting with " ++ show value)
                             unwrap env value arg
                             -- pure (Just $ Map.insert var arg env)
                 ELit lit -> do 
@@ -159,7 +159,8 @@ debugLog s = do
     let newLogEntry = indentation ++ s ++ "\n"
     tell newLogEntry
 
-
+logger :: String -> Evaluation ()
+logger = lift . debugLog
 
 makeEnvironment :: Environment
 makeEnvironment = Map.empty
@@ -202,9 +203,9 @@ findPath env predicate actual = case actual of
 calculation env cons op l r = do
     p1 <- findPath env (ofConstrOrVar (ELit (LInt 0))) l
     p2 <- findPath env (ofConstrOrVar (ELit (LInt 0))) r
-    lift $ debugLog "Calculation"
-    lift $ debugLog (show p1)
-    lift $ debugLog (show p2)
+    logger "Calculation"
+    logger (show p1)
+    logger (show p2)
     case (p1, p2) of 
         (Just (EVar _), _) -> return $ cons l r
         (_, Just (EVar _)) -> return $ cons l r
