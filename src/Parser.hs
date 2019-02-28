@@ -78,6 +78,7 @@ expressionAtom = parens expression
              <|> literal_ 
              <|> basicType_
              <|> any_
+             <|> test_
              <|> EVar . Text.pack 
              <$> identifier
 
@@ -124,3 +125,5 @@ basicType_ = EType <$> (
   )
 
 any_ = symbol "_" *> pure EAny
+
+test_ = symbol "~" *> pure ETestRec

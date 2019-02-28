@@ -24,6 +24,7 @@ data Expression
   | EType Type
   | ENothing
   | EAny
+  | ETestRec
   deriving (Eq, Ord, Show, Typeable, Data)
 
 data Lit

@@ -76,6 +76,9 @@ eval env e = do
                 case newEnv of 
                     Just env -> eval env r
                     _ -> throwError "eval: failed evaluating line"
+            ETestRec -> do
+                lift $ debugLog "rec"
+                eval env e
             _ -> pure e
 
 unwrap :: Environment -> Expression -> Expression -> Evaluation (Maybe Environment) 
@@ -103,8 +106,8 @@ unwrap env binder arg = do
                         Nothing -> pure (Just $ Map.insert var arg env)
                         Just value -> do 
                             lift $ debugLog ("(not) Intersecting with " ++ show value)
-                            -- unwrap env value arg
-                            pure (Just $ Map.insert var arg env)
+                            unwrap env value arg
+                            -- pure (Just $ Map.insert var arg env)
                 ELit lit -> do 
                     path <- findPath env (equalExpression binder) arg
                     case path of
@@ -133,29 +136,30 @@ unwrap env binder arg = do
 
 type Environment = Map Text Expression
 
-type LogMessages = [String]
 type IndentationLevel = Int
-type EvaluationLogger = State ([String], Int)
+type EvaluationLogger = WriterT String (State IndentationLevel)
+
+type Evaluation a = ExceptT Text EvaluationLogger a
+type EvaluationResult = (Either Text Expression, String)
 
 increaseDebugIndentation :: EvaluationLogger ()
 increaseDebugIndentation = do   
-    (xs, level) <- get
-    put (xs, level + 1)
+    level <- lift $ get
+    lift $ put (level + 1)
 
 decreaseDebugIndentation :: EvaluationLogger ()
-decreaseDebugIndentation = do   
-    (xs, level) <- get
-    put (xs, level -1)
+decreaseDebugIndentation = do
+    level <- lift $ get
+    lift $ put (level - 1)
 
 debugLog :: String -> EvaluationLogger ()
 debugLog s = do   
-    (xs, level) <- get
+    level <- lift $ get
     let indentation = foldl (++) "" $ replicate level ". "
-    let newLogEntry = indentation ++ s
-    put (newLogEntry:xs, level)
+    let newLogEntry = indentation ++ s ++ "\n"
+    tell newLogEntry
 
 
-type Evaluation a = ExceptT Text EvaluationLogger a
 
 makeEnvironment :: Environment
 makeEnvironment = Map.empty
@@ -225,18 +229,16 @@ removeVariable env y = pure y
 -- typeCheck env t arg = case t of
 
 
-type EvaluationResult = (Either Text Expression, [String])
 
-runEvaluation :: Environment -> Expression -> (Either Text Expression, ([String], Int))
-runEvaluation env e = runState (runExceptT evaluated) ([], 0)
+runEvaluation :: Environment -> Expression -> ((Either Text Expression, String), IndentationLevel)
+runEvaluation env e = runState (runWriterT (runExceptT evaluated)) 0
     where evaluated = do path <- findPath env finalResult e
                          case path of
                              Nothing -> throwError "can't evaluate to printable value"
                              Just e -> return e
 
 evaluate :: Expression -> EvaluationResult
-evaluate e = let (result, (log, _)) = runEvaluation makeEnvironment e
-              in (result, reverse log)
+evaluate e = fst $ runEvaluation makeEnvironment e
 
 showT :: Show a => a -> Text
 showT = Text.pack . show
