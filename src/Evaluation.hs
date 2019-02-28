@@ -29,7 +29,11 @@ eval env e = do
             --     Just e -> pure e
             EApp fun arg -> case fun of
                 EAbs binder body -> do
-                    newEnv <- unwrap env binder arg
+                    path <- findPath env ofVar binder
+                    let envWithCleanBinder = case path of
+                            Just (EVar var) -> Map.delete var env
+                            Nothing -> env
+                    newEnv <- unwrap envWithCleanBinder binder arg
                     case newEnv of 
                         Just env -> eval env body >>= removeVariable env
                         _-> throwError "eval: wrong argument"
@@ -91,13 +95,16 @@ unwrap env binder arg = do
     where result = do
             evaluated <- eval env binder
             if evaluated /= binder then unwrap env evaluated arg
-                                else case binder of 
+                                   else case binder of 
                 EVar var -> do
                     lift $ debugLog ("Adding to env as " ++ show var ++ ":")
                     lift $ debugLog (show arg)
                     case Map.lookup var env of
                         Nothing -> pure (Just $ Map.insert var arg env)
-                        Just v -> pure (Just $ Map.insert var arg env)
+                        Just value -> do 
+                            lift $ debugLog ("(not) Intersecting with " ++ show value)
+                            -- unwrap env value arg
+                            pure (Just $ Map.insert var arg env)
                 ELit lit -> do 
                     path <- findPath env (equalExpression binder) arg
                     case path of
@@ -165,6 +172,9 @@ ofConstr constr e = toConstr constr == toConstr e
 
 ofConstrOrVar :: Expression -> PathFoundPredicate
 ofConstrOrVar constr e = ofConstr constr e || ofConstr (EVar "") e
+
+ofVar :: PathFoundPredicate
+ofVar = ofConstr (EVar "")
 
 equalExpression :: Expression -> PathFoundPredicate
 equalExpression expected actual = expected == actual

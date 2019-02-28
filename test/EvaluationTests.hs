@@ -14,7 +14,9 @@ evaluationTests =
     [ testCase "evalLiteral" literalTest 
     , testCase "binaryPlus" plusTest 
     , testCase "plusFail" plusFailTest 
-    , testCase "lambdas" lambdasTest 
+    , testCase "simpleLambda" simpleLambda  
+    , testCase "simpleLambda2" simpleLambda2 
+    , testCase "lambdas" lambdasTest  
     , testCase "matchTest" matchTest
     , testCase "wrongMatch" wrongMatchTest
     , testCase "unapplyPlus" unapplyPlusTest
@@ -70,6 +72,16 @@ plusTest = parseAndEvaluateTest "1 + 2" (ELit (LInt 3))
 
 plusFailTest :: Assertion
 plusFailTest = parseAndFailEvaluationTest "1 + (+)"
+
+simpleLambda :: Assertion
+simpleLambda = parseAndEvaluateTest
+                "(x => x + 100) 2"
+                (ELit (LInt 102))
+
+simpleLambda2 :: Assertion
+simpleLambda2 = parseAndEvaluateTest
+                "(x => y => x + y) 2 3"
+                (ELit (LInt 5))
 
 lambdasTest :: Assertion
 lambdasTest = parseAndEvaluateTest 
