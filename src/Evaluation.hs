@@ -12,6 +12,118 @@ import Data.Data
 import Data.Maybe
 import AST
 
+eval :: Environment -> Expression -> Evaluation Expression
+eval env e = do
+    lift $ debugLog ("Evaluating expression:")
+    lift $ debugLog (show e)
+    lift $ increaseDebugIndentation
+    r <- result
+    lift $ decreaseDebugIndentation
+    lift $ debugLog "Evaluation result:"
+    lift $ debugLog (show r)
+    lift $ debugLog (show (Map.assocs env))
+    return r
+    where result = case e of
+            -- EVar var -> case Map.lookup var env of
+            --     Nothing -> throwError ("unbound variable " <> showT var)
+            --     Just e -> pure e
+            EApp fun arg -> case fun of
+                EAbs binder body -> do
+                    newEnv <- unwrap env binder arg
+                    case newEnv of 
+                        Just env -> eval env body >>= removeVariable env
+                        _-> throwError "eval: wrong argument"
+                EApp fun deeperArg -> do
+                    path <- findPath env (ofConstr (EAbs ENothing ENothing)) fun
+                    case path of
+                        Nothing -> invalidApp
+                        Just (EAbs binder body) -> do
+                            newEnv <- unwrap env binder deeperArg
+                            case newEnv of
+                                Just env -> do
+                                    applied <- eval env (EApp (EAbs binder body) deeperArg)
+                                    eval env (EApp applied arg)
+                                _ -> throwError "eval: can't apply argument"
+                EType TInt -> do
+                    value <- findPath env (ofConstr (ELit $ LInt 0)) arg 
+                    case value of
+                        Just (ELit (LInt x)) -> return (ELit (LInt x))
+                        _ -> throwError "argument is not integer"
+                EType TBool -> do
+                    value <- findPath env (ofConstr (ELit $ LBool False)) arg 
+                    case value of
+                        Just (ELit (LBool x)) -> return (ELit (LBool x))
+                        _ -> throwError "argument is not integer"
+                -- EType (TFun a b) -> do
+                --     value 
+                _ -> invalidApp
+                where invalidApp = throwError ("invalid application of " <> showT fun <> " and " <> showT arg)
+            EAdd  l r -> calculation env EAdd  (+) l r
+            EMult l r -> calculation env EMult (*) l r
+            ESub  l r -> calculation env ESub  (-) l r
+            ELet var val e -> eval (Map.insert var val env) e
+            -- EEq l r -> do
+            --     newEnv <- unwrap env l r 
+            --     case newEnv of 
+            --         Nothing -> pure ENothing
+            --         Just newEnv -> pure l
+            EThen l r -> do
+                newEnv <- unwrap env l EAny
+                case newEnv of 
+                    Just env -> eval env r
+                    _ -> throwError "eval: failed evaluating line"
+            _ -> pure e
+
+unwrap :: Environment -> Expression -> Expression -> Evaluation (Maybe Environment) 
+unwrap env binder arg = do
+    lift $ debugLog ("Unwrapping expression")
+    lift $ debugLog ("Binder: " ++ show binder)
+    lift $ debugLog ("Arg:    " ++ show arg)
+    lift $ increaseDebugIndentation
+    r <- result
+    lift $ decreaseDebugIndentation
+    lift $ debugLog ("Unwrapping result: ")
+    lift $ debugLog (show r)
+    -- lift $ debugLog "Unwrap result"
+    -- lift $ debugLog (show r)
+    -- lift $ debugLog (show (Map.assocs env))
+    return r
+    where result = do
+            evaluated <- eval env binder
+            if evaluated /= binder then unwrap env evaluated arg
+                                else case binder of 
+                EVar var -> do
+                    lift $ debugLog ("Adding to env as " ++ show var ++ ":")
+                    lift $ debugLog (show arg)
+                    case Map.lookup var env of
+                        Nothing -> pure (Just $ Map.insert var arg env)
+                        Just v -> pure (Just $ Map.insert var arg env)
+                ELit lit -> do 
+                    path <- findPath env (equalExpression binder) arg
+                    case path of
+                        Nothing -> return Nothing -- "unwrap: can't match literals"
+                        Just res -> return $ Just env
+                EEq l r -> do 
+                    newEnv <- unwrap env l r
+                    case newEnv of
+                        Nothing -> return Nothing
+                        Just env -> unwrap env l arg
+                EAdd l r -> do
+                    unwrappedL <- unwrap env l (ESub arg r)
+                    unwrappedR <- unwrap env r (ESub arg l)
+                    case (unwrappedL, unwrappedR) of
+                        (Just env, Nothing) -> return $ Just env
+                        (Nothing, Just env) -> return $ Just env
+                        _ -> throwError "unwrap: ambiguous environments"
+                    -- lVariable <- findPath env (ofConstr (EVar "")) l
+                    -- rVariable <- findPath env (ofConstr (EVar "")) r
+                    -- case (lVariable, rVariable) of
+                    --     (Just (EVar var), Nothing) -> pure (Just $ Map.insert var (ESub arg (ELit (LInt 3))) env)
+                    --     (Nothing, Just (EVar var)) -> pure (Just $ Map.insert var (ESub arg (ELit (LInt 3))) env)
+                    --     _ -> throwError "can't unwrap"
+                _ -> throwError "unwrap: no match"
+                -- EApp fun arg -> unwrap 
+
 type Environment = Map Text Expression
 
 type LogMessages = [String]
@@ -45,43 +157,6 @@ getFromEnv :: Environment -> Text -> Evaluation (Maybe Expression)
 getFromEnv env var = do
     pure $ Map.lookup var env
 
-unwrap :: Environment -> Expression -> Expression -> Evaluation (Maybe Environment) 
-unwrap env binder arg = do
-    lift $ debugLog ("Unwrapping expression")
-    lift $ debugLog (show binder)
-    lift $ debugLog (show arg)
-    lift $ increaseDebugIndentation
-    r <- result
-    lift $ decreaseDebugIndentation
-    -- lift $ debugLog "Unwrap result"
-    -- lift $ debugLog (show r)
-    -- lift $ debugLog (show (Map.assocs env))
-    return r
-    where result = do
-            evaluated <- eval env binder
-            if evaluated /= binder then unwrap env evaluated arg
-                                else case binder of 
-                EVar var -> pure (Just $ Map.insert var arg env)
-                ELit lit -> do 
-                    path <- findPath env (equalExpression binder) arg
-                    case path of
-                        Nothing -> return Nothing -- "unwrap: can't match literals"
-                        Just res -> return $ Just env
-                EAdd l r -> do
-                    unwrappedL <- unwrap env l (ESub arg r)
-                    unwrappedR <- unwrap env r (ESub arg l)
-                    case (unwrappedL, unwrappedR) of
-                        (Just env, Nothing) -> return $ Just env
-                        (Nothing, Just env) -> return $ Just env
-                        _ -> throwError "unwrap: ambiguous environments"
-                    -- lVariable <- findPath env (ofConstr (EVar "")) l
-                    -- rVariable <- findPath env (ofConstr (EVar "")) r
-                    -- case (lVariable, rVariable) of
-                    --     (Just (EVar var), Nothing) -> pure (Just $ Map.insert var (ESub arg (ELit (LInt 3))) env)
-                    --     (Nothing, Just (EVar var)) -> pure (Just $ Map.insert var (ESub arg (ELit (LInt 3))) env)
-                    --     _ -> throwError "can't unwrap"
-                _ -> throwError "unwrap: no match"
-                -- EApp fun arg -> unwrap 
 
 type PathFoundPredicate = Expression -> Bool
 
@@ -139,65 +214,6 @@ removeVariable env y = pure y
 -- typeCheck :: Environment -> Expression -> Expression -> Evaluation Bool
 -- typeCheck env t arg = case t of
 
-eval :: Environment -> Expression -> Evaluation Expression
-eval env e = do
-    lift $ debugLog ("Evaluating expression")
-    lift $ debugLog (show e)
-    lift $ increaseDebugIndentation
-    r <- result
-    lift $ decreaseDebugIndentation
-    lift $ debugLog "Evaluation result"
-    lift $ debugLog (show r)
-    lift $ debugLog (show (Map.assocs env))
-    return r
-    where result = case e of
-            -- EVar var -> case Map.lookup var env of
-            --     Nothing -> throwError ("unbound variable " <> showT var)
-            --     Just e -> pure e
-            EApp fun arg -> case fun of
-                EAbs binder body -> do
-                    newEnv <- unwrap env binder arg
-                    case newEnv of 
-                        Just env -> eval env body >>= removeVariable env
-                        _-> throwError "eval: wrong argument"
-                EApp fun deeperArg -> do
-                    path <- findPath env (ofConstr (EAbs ENothing ENothing)) fun
-                    case path of
-                        Nothing -> invalidApp
-                        Just (EAbs binder body) -> do
-                            newEnv <- unwrap env binder deeperArg
-                            case newEnv of
-                                Just env -> do
-                                    applied <- eval env (EApp (EAbs binder body) deeperArg)
-                                    eval env (EApp applied arg)
-                                _ -> throwError "eval: can't apply argument"
-                EType TInt -> do
-                    value <- findPath env (ofConstr (ELit $ LInt 0)) arg 
-                    case value of
-                        Just (ELit (LInt x)) -> return (ELit (LInt x))
-                        _ -> throwError "argument is not integer"
-                EType TBool -> do
-                    value <- findPath env (ofConstr (ELit $ LBool False)) arg 
-                    case value of
-                        Just (ELit (LBool x)) -> return (ELit (LBool x))
-                        _ -> throwError "argument is not integer"
-                -- EType (TFun a b) -> do
-                --     value 
-                _ -> invalidApp
-                where invalidApp = throwError ("invalid application of " <> showT fun <> " and " <> showT arg)
-            EAdd  l r -> calculation env EAdd  (+) l r
-            EMult l r -> calculation env EMult (*) l r
-            ESub  l r -> calculation env ESub  (-) l r
-            ELet var val e -> eval (Map.insert var val env) e
-            -- EEq l r -> do
-            --     p1 <- findPath env () l
-            --     p2 <- findPath env () r
-            EThen l r -> do
-                newEnv <- unwrap env l EAny
-                case newEnv of 
-                    Just env -> eval env r
-                    _ -> throwError "eval: failed evaluating line"
-            _ -> pure e
 
 type EvaluationResult = (Either Text Expression, [String])
 
