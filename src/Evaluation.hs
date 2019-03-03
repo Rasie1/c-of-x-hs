@@ -26,16 +26,30 @@ eval env e = do
     where result = case e of
             EApp fun arg -> case fun of
                 EAbs binder body -> do
+                    logger "Searching variable in Abstraction's binder"
+                    lift $ increaseDebugIndentation
                     path <- findPath env ofVar binder
+                    lift $ decreaseDebugIndentation
+
                     let envWithCleanBinder = case path of
                             Just (EVar var) -> Map.delete var env
                             Nothing -> env
+
+                    logger "Substituting binder in Abs"
+                    lift $ increaseDebugIndentation
                     substituted <- subs envWithCleanBinder binder arg
+                    lift $ decreaseDebugIndentation
+
                     case substituted of 
-                        Just (expr, env) -> do 
+                        Just (_, env) -> do 
+                            logger "Found substitution, evaluating"
+                            lift $ increaseDebugIndentation
                             (newVar, newEnv) <- eval env body
                             value <- valueFromVariable env newVar
+                            lift $ decreaseDebugIndentation
+
                             return (value, env)
+
                         _-> throwError "eval: wrong argument"
                 EApp _ _ -> do
                     (evaluated, newEnv) <- eval env fun
@@ -119,9 +133,12 @@ subs env binder arg = do
                         substitutedL <- subs env l (ESub arg r)
                         substitutedR <- subs env r (ESub arg l)
                         case (substitutedL, substitutedR) of
+                            (Just (le, lenv), Just (re, renv)) -> do
+                                (e, env) <- eval env binder
+                                subs env e arg
                             (Just x, Nothing) -> return $ Just x
                             (Nothing, Just x) -> return $ Just x
-                            _ -> throwError "subs: ambiguous environments"
+                            (Nothing, Nothing) -> throwError "subs: ambiguous environments"
                         -- lVariable <- findPath env (ofConstr (EVar "")) l
                         -- rVariable <- findPath env (ofConstr (EVar "")) r
                         -- case (lVariable, rVariable) of
