@@ -15,8 +15,10 @@ evaluationTests =
     , testCase "binaryPlus" plusTest 
     , testCase "plusFail" plusFailTest 
     , testCase "simpleLambda" simpleLambda  
-    , testCase "simpleLambda2" simpleLambda2 
-    , testCase "lambdas" lambdasTest  
+    , testCase "intersectingEnvironments" intersectingEnvironments  
+    , testCase "randomLambda1" randomLambda1 
+    , testCase "randomLambda2" randomLambda2 
+    , testCase "randomLambda3" randomLambda3 
     , testCase "matchTest" matchTest
     , testCase "wrongMatch" wrongMatchTest
     , testCase "unapplyPlus" unapplyPlusTest
@@ -78,13 +80,25 @@ simpleLambda = parseAndEvaluateTest
                 "(x => x + 100) 2"
                 (ELit (LInt 102))
 
-simpleLambda2 :: Assertion
-simpleLambda2 = parseAndEvaluateTest
+intersectingEnvironments :: Assertion
+intersectingEnvironments = parseAndEvaluateTest
+                           "(x => x * 1) ((x => x) 2)"
+                           (ELit (LInt 2))
+
+randomLambda1 :: Assertion  
+randomLambda1 = parseAndEvaluateTest
                 "(x => y => x + y) 2 3"
                 (ELit (LInt 5))
 
-lambdasTest :: Assertion
-lambdasTest = parseAndEvaluateTest 
+randomLambda2 :: Assertion  
+randomLambda2 = parseAndEvaluateTest
+                "(x => x + 1) ((x => (y => 3)) 500 200)"
+                (ELit (LInt 4))
+
+                
+
+randomLambda3 :: Assertion
+randomLambda3 = parseAndEvaluateTest 
                 "(x => x * 1000) (1 + ((x => (y => x + y)) 5 2))"
                 (ELit (LInt 8000))
 
