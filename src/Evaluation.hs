@@ -24,17 +24,14 @@ eval env e = do
     logger (show r)
     return r
     where result = case e of
-            -- EVar var -> case Map.lookup var env of
-            --     Nothing -> throwError ("unbound variable " <> showT var)
-            --     Just e -> pure e
             EApp fun arg -> case fun of
                 EAbs binder body -> do
                     path <- findPath env ofVar binder
                     let envWithCleanBinder = case path of
                             Just (EVar var) -> Map.delete var env
                             Nothing -> env
-                    unwraped <- unwrap envWithCleanBinder binder arg
-                    case unwraped of 
+                    substituted <- subs envWithCleanBinder binder arg
+                    case substituted of 
                         Just (expr, env) -> do 
                             (newVar, newEnv) <- eval env body
                             value <- valueFromVariable env newVar
@@ -53,8 +50,6 @@ eval env e = do
                     case value of
                         Just (ELit (LBool x)) -> return (ELit (LBool x), env)
                         _ -> throwError "argument is not integer"
-                -- EType (TFun a b) -> do
-                --     value 
                 _ -> invalidApp
                 where invalidApp = throwError ("invalid application of " <> showT fun <> " and " <> showT arg)
             EAdd  l r -> do
@@ -68,13 +63,13 @@ eval env e = do
                 return (result, env)
             ELet var val e -> eval (Map.insert var val env) e
             -- EEq l r -> do
-            --     newEnv <- unwrap env l r 
+            --     newEnv <- subs env l r 
             --     case newEnv of 
             --         Nothing -> pure ENothing
             --         Just newEnv -> pure l
             EThen l r -> do
-                unwrapped <- unwrap env l EAny
-                case unwrapped of 
+                substituted <- subs env l EAny
+                case substituted of 
                     Just (_, env) -> eval env r
                     _ -> throwError "eval: failed evaluating line"
             ETestRec -> do
@@ -82,18 +77,18 @@ eval env e = do
                 eval env e
             _ -> pure (e, env)
 
-unwrap :: Environment -> Expression -> Expression -> Evaluation (Maybe (Expression, Environment)) 
-unwrap env binder arg = do
-    logger ("Unwrapping expression")
+subs :: Environment -> Expression -> Expression -> Evaluation (Maybe (Expression, Environment)) 
+subs env binder arg = do
+    logger ("Substituting expression")
     logger ("Env:    " ++ show env)
     logger ("Binder: " ++ show binder)
     logger ("Arg:    " ++ show arg)
     lift $ increaseDebugIndentation
     r <- result
     lift $ decreaseDebugIndentation
-    logger ("Unwrapping result: ")
+    logger ("Substitution result: ")
     logger (show r)
-    -- logger "Unwrap result"
+    -- logger "subs result"
     -- logger (show r)
     -- logger (show (Map.assocs env))
     return r
@@ -105,36 +100,36 @@ unwrap env binder arg = do
                             Nothing -> pure (Just $ (binder, Map.insert var arg env))
                             Just value -> do 
                                 logger ("(not) Intersecting with " ++ show value)
-                                unwrap env value arg
+                                subs env value arg
                                 -- pure (Just $ Map.insert var arg env)
                     ELit lit -> do 
                         path <- findPath env (equalExpression binder) arg
                         case path of
-                            Nothing -> return Nothing -- "unwrap: can't match literals"
+                            Nothing -> return Nothing -- "subs: can't match literals"
                             Just res -> return $ Just (res, env)
                     EApp fun arg -> do
                         (evaluated, newEnv) <- eval env binder
-                        unwrap env evaluated arg
+                        subs env evaluated arg
                     EEq l r -> do 
-                        unwrapped <- unwrap env l r
-                        case unwrapped of
+                        substituted <- subs env l r
+                        case substituted of
                             Nothing -> return Nothing
-                            Just (expr, env) -> unwrap env expr arg
+                            Just (expr, env) -> subs env expr arg
                     EAdd l r -> do
-                        unwrappedL <- unwrap env l (ESub arg r)
-                        unwrappedR <- unwrap env r (ESub arg l)
-                        case (unwrappedL, unwrappedR) of
+                        substitutedL <- subs env l (ESub arg r)
+                        substitutedR <- subs env r (ESub arg l)
+                        case (substitutedL, substitutedR) of
                             (Just x, Nothing) -> return $ Just x
                             (Nothing, Just x) -> return $ Just x
-                            _ -> throwError "unwrap: ambiguous environments"
+                            _ -> throwError "subs: ambiguous environments"
                         -- lVariable <- findPath env (ofConstr (EVar "")) l
                         -- rVariable <- findPath env (ofConstr (EVar "")) r
                         -- case (lVariable, rVariable) of
                         --     (Just (EVar var), Nothing) -> pure (Just $ Map.insert var (ESub arg (ELit (LInt 3))) env)
                         --     (Nothing, Just (EVar var)) -> pure (Just $ Map.insert var (ESub arg (ELit (LInt 3))) env)
-                        --     _ -> throwError "can't unwrap"
-                    _ -> throwError "unwrap: no match"
-                    -- EApp fun arg -> unwrap 
+                        --     _ -> throwError "can't subs"
+                    _ -> throwError "subs: no match"
+                    -- EApp fun arg -> subs 
 
 type Environment = Map Text Expression
 
